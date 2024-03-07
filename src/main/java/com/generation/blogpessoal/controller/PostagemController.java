@@ -1,18 +1,27 @@
 package com.generation.blogpessoal.controller;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.generation.blogpessoal.model.Postagem;
 import com.generation.blogpessoal.repositroy.PostagemRepository;
+
+import jakarta.validation.Valid;
 
 @RestController
 //Recebe requisições compostas por : 
@@ -80,27 +89,88 @@ public class PostagemController {
 	}
 
 	@GetMapping("/{id}")
-	//Pedir o id(Variável de caminho / Path Variable) da postagem que quer ser puxada
+	// Pedir o id(Variável de caminho / Path Variable) da postagem que quer ser
+	// puxada
 	public ResponseEntity<Postagem> getById(@PathVariable Long id) {
-		//Dessa vez será retornada apenas uma postagem 
-		//O PathVariable insere o valor que for passado no endereço do endpoint
-		return postagemRepository.findById(id)
-				.map(resposta -> ResponseEntity.ok(resposta))
-				//Se for encontrado alguma postagem o id informado,cai dentro do map(Optional)
-				//dentro do resposta será mapeado o objeto que foi encontrado,e logo após retorna o objeto e também o Status HTTP(200)
+		// Dessa vez será retornada apenas uma postagem
+		// O PathVariable insere o valor que for passado no endereço do endpoint
+		return postagemRepository.findById(id).map(resposta -> ResponseEntity.ok(resposta))
+				// Se for encontrado alguma postagem o id informado,cai dentro do map(Optional)
+				// dentro do resposta será mapeado o objeto que foi encontrado,e logo após
+				// retorna o objeto e também o Status HTTP(200)
 				.orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-				//Se não for encontrado,cai aqui dentro,será retornado o HTTP (404 - NOT FOUND) 
-				//eu defini que o status dessa requisição será como not_found,quando eu preciso
-				//definir o status da requisição,eu preciso usar o .build() para é necessário para finalizar a construção da instância e retorná-la
-		
+		// Se não for encontrado,cai aqui dentro,será retornado o HTTP (404 - NOT FOUND)
+		// eu defini que o status dessa requisição será como not_found,quando eu preciso
+		// definir o status da requisição,eu preciso usar o .build() para é necessário
+		// para finalizar a construção da instância e retorná-la
 
 	}
 
 	@GetMapping("/titulo/{titulo}")
-	public ResponseEntity<List<Postagem>> getByTitulo(@PathVariable String titulo)  {
+	public ResponseEntity<List<Postagem>> getByTitulo(@PathVariable String titulo) {
 		return ResponseEntity.ok(postagemRepository.findByTituloContainingIgnoreCase(titulo));
-		//ATENÇÃO: Por que aqui a gente não fez um map ,else ? Todo método que tem como retorno 
-		//uma lista,auomaticamente ela será gerada,então caso ele não encontre ainda assim será
-		//retornado uma lista vazia
+		// ATENÇÃO: Por que aqui a gente não fez um map ,else ? Todo método que tem como
+		// retorno
+		// uma lista,auomaticamente ela será gerada,então caso ele não encontre ainda
+		// assim será
+		// retornado uma lista vazia
+	}
+
+	@PostMapping
+	// Usando o post pois está sendo feito um metodo que irá postar algo
+	public ResponseEntity<Postagem> post(@Valid @RequestBody Postagem postagem) {
+		// Valid : Esta anotação valida o Objeto Postagem enviado no Corpo da Requisição
+		// (Request Body), conforme as regras definidas na Model
+		// Postagem (@NotNull, @NotBlank, @Size e etc).Ele vai validar a postagem que
+		// está sendo enviada
+
+		// RequestBody Postagem postagem : recebe o Objeto do tipo Postagem, que foi
+		// enviado no Corpo da Requisição (Request Body), no formato JSON e
+		// insere no parâmetro postagem do Método post.
+		return ResponseEntity.status(HttpStatus.CREATED).body(postagemRepository.save(postagem));
+		// HTTP Status CREATED🡪201 se o Objeto foi persistido no Banco de dados.
+		// O postagemRepository.save esta usando um método que foi puxado da interface
+		// JPARepository
+	}
+
+	@PutMapping
+	// Eu vou atualizar uma postagem já existente
+	public ResponseEntity<Postagem> put(@Valid @RequestBody Postagem postagem) {
+		return postagemRepository.findById(postagem.getId())
+				// procurando se já existe uma postagem com o id informado
+				// A gente cria esse findById,porque o metodo save(usado na linha de baixo)ele
+				// serve tanto pra atualizar
+				// quanto pra criar,então pra não correr o risco dele criar e duplicar,primeiro
+				// a gente procura a postagem
+				// pelo id
+
+				.map(resposta -> ResponseEntity.status(HttpStatus.OK).body(postagemRepository.save(postagem)))
+				// Se a postagem já existir, este trecho de código vai ser executado. Ele está
+				// criando uma resposta dizendo que a
+				// operação foi bem-sucedida (HttpStatus.OK), e ele também está atualizando a
+				// postagem
+				.orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+		// se não existir a postagem com o id informado,ele cai no erro 404(not found)
+
+	}
+
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	// Eu estou falando que caso a requisição aconteça corretamente,ele retorna um
+	// HTTP No_content(204)
+	// ao invés de retornar OK(200)
+	@DeleteMapping("/{id}")
+	// passando o id da publicação que eu quero apagar
+	public void delete(@PathVariable Long id) {
+		Optional<Postagem> postagem = postagemRepository.findById(id);
+		// Caso não seja encontrado a postagem com o id informado,graças ao Optional ele
+		// irá encapsular a resposta do Método findById(id)
+		// e evitar o erro NullPointerException.
+		if (postagem.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+		}
+
+		postagemRepository.deleteById(id);
+		//Aqui ele está removendo,retorna uma NO_CONTENT 204
+
 	}
 }
